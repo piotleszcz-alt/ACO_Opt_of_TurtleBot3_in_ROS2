@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 import config
 import numpy as np
 import inflation 
+from aco_opt import ACOPlanner
 
 def main():
     map = MapData(config.YAML_FILE_PATH)
@@ -28,7 +29,7 @@ def main():
 
     dilated_grid = inflation.dilatation(config.ROBOT_SAFE_RADIUS, grid, map.get_resolution())
 
-    # podgląd: klasyfikacja, binaryzacja i dylatacja obok siebie
+    # podgląd: klasyfikacja, binaryzacja i dylatacja
     fig, axes = plt.subplots(1, 3, figsize=(15, 5))
 
     axes[0].imshow(classified, cmap='gray_r', origin='lower')
@@ -42,6 +43,10 @@ def main():
 
     plt.tight_layout()
     plt.show()
+
+    planner = ACOPlanner(dilated_grid, start=(200, 190), goal=(200, 210))
+    print(planner.heuristic((200, 190), (200, 191)))   # w stronę celu → większa
+    print(planner.heuristic((200, 190), (200, 189)))   # od celu → mniejsza
 
 
 if __name__ == "__main__":
