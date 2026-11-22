@@ -1,15 +1,14 @@
 import numpy as np
-from map_data import MapData
 import math
 
 class ACOPlanner:
     def __init__(self, grid:np.ndarray, start: tuple, goal: tuple,
                   m_ants=30, tau_min=0.05, tau_max=5.0, max_iter=50,
                     alfa=1.0, beta=2.0, rho=0.15, Q_const=100.0, q_0 = 0.7,
-                    max_steps = 500, tau_0 = 1.0):
+                    max_steps = 500, tau_0 = 1.0, lam = 0.0, seed=None):
         self.grid = grid
-        self.start = start
-        self.goal = goal
+        self.start = tuple(start)
+        self.goal = tuple(goal)
         self.m_ants = m_ants
         self.tau_min = tau_min
         self.tau_max = tau_max
@@ -25,7 +24,8 @@ class ACOPlanner:
         self.tau = np.full(self.grid.shape, tau_0)
         self.best_path = None
         self.best_cost = np.inf
-        self.rng = np.random.default_rng(seed=None)
+        self.rng = np.random.default_rng(seed)
+        self.lam = lam
         self._validate_params()
 
     def _validate_params(self):
@@ -51,15 +51,15 @@ class ACOPlanner:
         self._check_cell(self.start, "start")
         self._check_cell(self.goal, "goal")
 
-    def _check_cell(self, cell, name):
+    def _check_cell(self, cell:tuple, name):
         r, c = cell
         if not (0 <= r < self.height and 0 <= c < self.width):
             raise ValueError(f"{name} {cell} jest poza mapą {self.height}x{self.width}")
         if self.grid[r, c] != 0:
             raise ValueError(f"{name} {cell} leży na przeszkodzie (po dylatacji)")
         
-
-    def get_neighbors(self, cell, visited):
+    # zebranie wszystkich sąsiadów
+    def get_neighbors(self, cell:tuple, visited):
         MOVES = [(-1,0),(1,0),(0,-1), (0,1), 
                  (-1,1),(1,1),(-1,-1), (1,-1)] #przesunięcia punktów sąsiednich w okół aktualnego punktu
 
@@ -82,7 +82,8 @@ class ACOPlanner:
 
         return neighbors
 
-    def heuristic(self,cell,neighbor) -> float:
+    # informacja heurestyczna - im bliżejk celu tym większa wartość zwracana przez funkcję
+    def heuristic(self,cell: tuple[int, int],neighbor: tuple[int, int]) -> float:
 
         r,c = cell
         nr, nc = neighbor
@@ -99,19 +100,129 @@ class ACOPlanner:
 
         return 1.0/ (step_cost + dist_to_goal)
 
-    
+    # Wybór następnej komórki do której idzie mrówka
+    def choose_next_cell(self, cell: tuple[int, int], neighbors: list[tuple[int, int]]) -> tuple:
+        a = []
+        for i in neighbors:
+            nr, nc = i
+            a_temp = self.tau[nr,nc]**self.alfa * self.heuristic(cell,(nr, nc))**self.beta #atrakcyjność śladu feromonowego
+            a.append(a_temp)
 
-
-            
-
-
-
-
-
-
-            
-
+        a = np.array(a)
         
+        q = self.rng.random()
+
+        if q <= self.q_0:
+            index = np.argmax(a)
+            next_cell = neighbors[index]
+        else:
+            P = a / sum(a)
+            index = self.rng.choice(len(neighbors), p=P)
+            next_cell = neighbors[index]
+
+        return next_cell      
+
+    def construct_path(self):  # Kroki 1–3 w pętli -> ścieżka jednej mrówki albo None
+        path = [self.start]
+        visited = {self.start}
+        current = self.start
+
+        for _ in range(self.max_steps):
+            if current == self.goal:
+                return path
+            neighbors = self.get_neighbors(current,visited)
+            if not neighbors:
+                return None
+            next_cell = self.choose_next_cell(current,neighbors)
+            path.append(next_cell)
+            visited.add(next_cell)
+
+            current = next_cell
+
+        if current == self.goal:
+            return path
+        else:
+            return None
 
 
+    def path_cost(self, path: list[tuple[int, int]]) -> float: # Ocena jakości trasy funkcją kosztu J_k
+        
+        L = 0
+        delta_theta = 0
+
+        for a, b in zip(path, path[1:]):
+            r_1, c_1 = a
+            r_2, c_2 = b
+
+            dr = r_2 - r_1
+            dc = c_2 - c_1
+
+            
+            if (dr != 0 and dc != 0):
+                step_cost = math.sqrt(2)
+            else:
+                step_cost = 1
+
+            L += step_cost # suma długości ścieżki danej mrówki
+
+        for (r0, c0), (r1, c1), (r2, c2) in zip (path, path[1:], path[2:]):
+            dr1 = r1 - r0
+            dc1 = c1 - c0
+            dr2 = r2 - r1
+            dc2 = c2 - c1
+
+            theta1 = math.atan2(dr1,dc1)
+            theta2 = math.atan2(dr2,dc2)
+
+            d = theta2 - theta1 
+            d = (d + math.pi) % (2 * math.pi) - math.pi # przejście do zakresu [0,2pi] --> modulo z dwóch pi --> powrót do zakresu [-pi,pi]
+            delta_theta += abs(d)
+
+
+        return L + self.lam * delta_theta
+
+            
+    def update_pheromones(self, best_path, best_cost):  # Krok 5 -> parowanie, depozyt, przycięcie
+        self.tau *= (1 - self.rho) # parowanie - zmniejszenie wszystkich wartości feromonu
+        if best_path is not None: #aktualizacja feromonu
+            delta_tau = self.Q_const/best_cost
+            rows, cols = zip(*best_path)
+            self.tau[rows,cols] += delta_tau
+
+        self.tau = np.clip(self.tau, self.tau_min, self.tau_max)
+
+    def run(self):
+        self.history = []
+
+        for i in range(self.max_iter):
+            paths = []
+            for _ in range(self.m_ants):
+                paths.append(self.construct_path())
+
+            successful = []
+            for p in paths: # Wybór ścieżek mrówek tylko tych, które dosżły do celu
+                if p is not None:
+                    successful.append(p)
+
+            paths = successful
+
+            if paths:
+                costs = []
+                for p in paths:
+                    costs.append(self.path_cost(p))
+
+                i_best = int(np.argmin(costs))
+
+                if costs[i_best] < self.best_cost:
+                    self.best_cost = costs[i_best]
+                    self.best_path = paths[i_best]
+
+            #wariant MMAS, global best
+            self.update_pheromones(self.best_path, self.best_cost)
+
+            self.history.append(self.best_cost)
+            print(f"iter {i + 1}/{self.max_iter}: doszło {len(paths)}/{self.m_ants}, "
+                f"best = {self.best_cost:.2f}")
+
+        return self.best_path
 

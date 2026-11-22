@@ -44,10 +44,31 @@ def main():
     plt.tight_layout()
     plt.show()
 
-    planner = ACOPlanner(dilated_grid, start=(200, 190), goal=(200, 210))
-    print(planner.heuristic((200, 190), (200, 191)))   # w stronę celu → większa
-    print(planner.heuristic((200, 190), (200, 189)))   # od celu → mniejsza
+    planner = ACOPlanner(dilated_grid, start=(200, 170), goal=(200, 230), seed=42)
+    best = planner.run()
 
+    if best is None:
+        print("Żadna mrówka nie doszła do celu")
+    else:
+        rows, cols = zip(*best)
+        fig, axes = plt.subplots(1, 3, figsize=(15, 5))
+
+        axes[0].imshow(dilated_grid, cmap='gray_r', origin='lower')
+        axes[0].plot(cols, rows, 'r-', linewidth=2)       # x = kolumna, y = wiersz
+        axes[0].plot(*planner.start[::-1], 'go')           # start (zielony)
+        axes[0].plot(*planner.goal[::-1], 'bo')            # cel (niebieski)
+        axes[0].set_title(f"Best path, J = {planner.best_cost:.2f}")
+
+        axes[1].imshow(planner.tau, cmap='hot', origin='lower')
+        axes[1].set_title("Pheromone τ")
+
+        axes[2].plot(planner.history)
+        axes[2].set_xlabel("iteracja")
+        axes[2].set_ylabel("best cost")
+        axes[2].set_title("Convergence")
+
+        plt.tight_layout()
+        plt.show()
 
 if __name__ == "__main__":
     main()
