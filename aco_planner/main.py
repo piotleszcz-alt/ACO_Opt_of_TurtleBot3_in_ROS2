@@ -4,8 +4,11 @@ import config
 import numpy as np
 import inflation 
 from aco_opt import ACOPlanner
+from tuning import run_tuning, scaled_params
+
 
 def main():
+
     map = MapData(config.YAML_FILE_PATH)
 
     print("Resolution:", map.get_resolution())
@@ -43,49 +46,43 @@ def main():
 
     plt.tight_layout()
     plt.show()
-
-    planners = []
-    for seed in range(5):
-        planner = ACOPlanner(dilated_grid, start=(160, 180), goal=(240, 210),
-                             seed=seed, **config.ACO_PARAMS)
-        planner.run()
-        planners.append(planner)
-
-    costs = [p.best_cost for p in planners]
-    found = [c for c in costs if c != np.inf]          # przebiegi, które znalazły trasę
-
-    print(f"Znaleziono trasę w {len(found)}/{len(costs)} przebiegach")
-    if found:
-        print(f"średnie J: {np.mean(found):.2f}, odchylenie: {np.std(found):.2f}, "
-              f"min: {min(found):.2f}, max: {max(found):.2f}")
-
-    best_planner = planners[int(np.argmin(costs))]     # najlepszy przebieg
-    best = best_planner.best_path
-
-    if best is None:
-        print("Żadna mrówka nie doszła do celu")
+    
+    if config.RUN_TUNING:
+        run_tuning(dilated_grid, config.ACO_PARAMS)
     else:
-        rows, cols = zip(*best)
-        fig, axes = plt.subplots(1, 3, figsize=(15, 5))
+        start, goal = (160, 180), (240, 210)
 
-        axes[0].imshow(dilated_grid, cmap='gray_r', origin='lower')
-        axes[0].plot(cols, rows, 'r-', linewidth=2)
-        axes[0].plot(*best_planner.start[::-1], 'go')
-        axes[0].plot(*best_planner.goal[::-1], 'bo')
-        axes[0].set_title(f"Best path, J = {best_planner.best_cost:.2f}")
+        # te same reguły co w strojeniu: mrówki i max_steps dobrane do odległości
+        params, L_min = scaled_params(start, goal, config.ACO_PARAMS)
+        planner = ACOPlanner(dilated_grid, start=start, goal=goal, **params)
+        best = planner.run()
 
-        axes[1].imshow(best_planner.tau, cmap='hot', origin='lower')
-        axes[1].set_title("Pheromone τ")
+        if best is None:
+            print("Żadna mrówka nie doszła do celu")
+        else:
+            print(f"J = {planner.best_cost:.2f}, L_min = {L_min:.2f}, "
+                  f"J/L_min = {planner.best_cost / L_min:.3f}")
 
-        for seed, p in enumerate(planners):            # wszystkie krzywe na jednym wykresie
-            axes[2].plot(p.history, label=f"seed {seed}")
-        axes[2].set_xlabel("iteracja")
-        axes[2].set_ylabel("best cost")
-        axes[2].set_title("Convergence")
-        axes[2].legend()
+            rows, cols = zip(*best)
+            fig, axes = plt.subplots(1, 3, figsize=(15, 5))
 
-        plt.tight_layout()
-        plt.show()
+            axes[0].imshow(dilated_grid, cmap='gray_r', origin='lower')
+            axes[0].plot(cols, rows, 'r-', linewidth=2)
+            axes[0].plot(*planner.start[::-1], 'go')
+            axes[0].plot(*planner.goal[::-1], 'bo')
+            axes[0].set_title(f"Best path, J = {planner.best_cost:.2f}")
 
+            axes[1].imshow(planner.tau, cmap='hot', origin='lower')
+            axes[1].set_title("Pheromone τ")
+
+            axes[2].plot(planner.history)
+            axes[2].axhline(L_min, color='gray', linestyle='--', label="L_min")
+            axes[2].set_xlabel("iteracja")
+            axes[2].set_ylabel("best cost")
+            axes[2].set_title("Convergence")
+            axes[2].legend()
+
+            plt.tight_layout()
+            plt.show()
 if __name__ == "__main__":
     main()
