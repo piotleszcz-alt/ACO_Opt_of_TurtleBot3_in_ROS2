@@ -57,3 +57,25 @@ class MapData:
         classified_grid = self.classify()
         unknown_value = 1 if unknown_as_obstacle else 0
         return np.where(classified_grid == -1, unknown_value, classified_grid)
+
+    def world_to_grid(self, x, y):
+        # policz r, c ze wzoru
+        o_x, o_y, _ = self.get_origin()
+        res = self.get_resolution()
+        c = (x - o_x)/res
+        r = (y - o_y)/res
+        height, width = self.map_data.shape
+
+        if not (0 <= r < height and 0 <= c < width):
+            return None
+        else:
+            return (int(r),int(c))
+
+    def grid_to_world(self, r, c):
+        # zwróć (x, y) - środek komórki
+        o_x, o_y, _ = self.get_origin()
+        res = self.get_resolution()
+        x = res * (c + 0.5) + o_x
+        y = res * (r + 0.5) + o_y
+
+        return (x,y)

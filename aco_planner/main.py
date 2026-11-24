@@ -1,10 +1,10 @@
-from map_data import MapData
+from aco_planner.map_data import MapData
 import matplotlib.pyplot as plt
-import config
+import aco_planner.config as config
 import numpy as np
-import inflation 
-from aco_opt import ACOPlanner
-from tuning import run_tuning, scaled_params
+import aco_planner.inflation  as inflation
+from aco_planner.aco_opt import ACOPlanner
+from aco_planner.tuning import run_tuning, scaled_params
 
 
 def main():

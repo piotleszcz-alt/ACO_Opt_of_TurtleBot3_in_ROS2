@@ -23,7 +23,8 @@ setup(
         ],
     },
     entry_points={
-        'console_scripts': [
+        'console_scripts': [ 
+            'aco_node = aco_planner.aco_node:main',
         ],
     },
 )

@@ -6,7 +6,7 @@ import time
 import matplotlib.pyplot as plt
 import numpy as np
 
-from aco_opt import ACOPlanner
+from aco_planner.aco_opt import ACOPlanner
 
 
 # Scenariusze testowe: (nazwa, start (r, c), cel (r, c))
