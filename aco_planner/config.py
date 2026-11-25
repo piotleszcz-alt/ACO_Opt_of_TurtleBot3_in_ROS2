@@ -1,5 +1,5 @@
 YAML_FILE_PATH = "/opt/ros/jazzy/share/turtlebot3_navigation2/map/map.yaml"
-ROBOT_SAFE_RADIUS = 0.18
+ROBOT_SAFE_RADIUS = 0.22
 
 ACO_PARAMS = {
     "beta": 5.0,

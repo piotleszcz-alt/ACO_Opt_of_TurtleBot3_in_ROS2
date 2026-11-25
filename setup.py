@@ -25,6 +25,7 @@ setup(
     entry_points={
         'console_scripts': [ 
             'aco_node = aco_planner.aco_node:main',
+            'pure_pursuit = aco_planner.pure_pursuit:main'
         ],
     },
 )
