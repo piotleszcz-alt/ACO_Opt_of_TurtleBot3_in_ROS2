@@ -2,15 +2,19 @@ import rclpy
 from rclpy.node import Node
 
 from geometry_msgs.msg import PoseStamped, PoseWithCovarianceStamped
+from nav_msgs.msg import OccupancyGrid, Path
+from rclpy.qos import QoSProfile, DurabilityPolicy, ReliabilityPolicy
 
 from aco_planner.map_data import MapData
 import aco_planner.inflation as inflation
 import aco_planner.config as config
-
-from nav_msgs.msg import OccupancyGrid
-from rclpy.qos import QoSProfile, DurabilityPolicy, ReliabilityPolicy
+from aco_planner.aco_opt import ACOPlanner
+import aco_planner.tuning as tuning
 
 import numpy as np 
+import time
+
+
 
 class AcoNode(Node):
     def __init__(self):
@@ -33,13 +37,18 @@ class AcoNode(Node):
             f"res = {self.map.get_resolution()} m")
 
         map_qos = QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL, reliability=ReliabilityPolicy.RELIABLE)
-        self.map_pub = self.create_publisher(OccupancyGrid,'/custom_map', map_qos)
+        self.map_pub = self.create_publisher(OccupancyGrid,'/custom_map', map_qos) # publisher do tworzenia mapy
+
+        self.path_pub = self.create_publisher(Path, '/planned_path',10) # publisher do tworzenia trajektorii ruchu 
+
         self.publish_map()
 
         self.start = None
 
         self.create_subscription(PoseStamped, '/goal_pose', self.on_goal, 10)
         self.create_subscription(PoseWithCovarianceStamped, '/initialpose', self.on_initialpose, 10)
+
+        
 
         self.get_logger().info('aco_node uruchomiony')
 
@@ -105,6 +114,59 @@ class AcoNode(Node):
             return
 
         self.get_logger().info(f"Rozpoczynanie wyliczania optymalnej ścieżki z punktu: {self.start} -> {goal}")
+
+        path = self._plan_path(self.start, goal)
+        
+        if path is None:
+            return
+
+        self.publish_path(path)
+
+
+
+    def _plan_path(self, start, goal):
+        params, _ = tuning.scaled_params(start, goal, config.ACO_PARAMS)
+
+        t0 = time.perf_counter()
+        try:
+            planner = ACOPlanner(self.dilated_grid, start=start, goal=goal, **params)
+            best_path = planner.run()
+        except ValueError as e:
+            self.get_logger().warn(f"ACO odrzuciło zadanie: {e}")
+            return None
+
+        dt = time.perf_counter() - t0
+
+        if best_path is None:
+            self.get_logger().warn(f"Nie znaleziono ścieżki z czasem {dt}")
+            return None
+
+        self.get_logger().info(f"Długość ścieżki w komórkach: {len(best_path)}, koszt J: {planner.best_cost:.2f}, czas obliczeń: {dt:.2f}")
+
+        return best_path
+
+    def publish_path(self,path):
+        msg = Path()
+
+        # nagłówek
+        msg.header.frame_id = 'map'
+        msg.header.stamp = self.get_clock().now().to_msg()
+
+        for r,c in path:
+            pose = PoseStamped()
+            pose.header = msg.header
+            x,y = self.map.grid_to_world(r,c)
+
+            pose.pose.position.x = float(x)
+            pose.pose.position.y = float(y)
+            pose.pose.orientation.w = 1.0
+
+            msg.poses.append(pose)
+
+        # wysłanie publishera
+        self.path_pub.publish(msg)
+
+
 
 
 def main(args=None):
