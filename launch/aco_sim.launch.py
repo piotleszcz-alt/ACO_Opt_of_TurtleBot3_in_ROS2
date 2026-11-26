@@ -48,7 +48,9 @@ def launch_setup(context):
     actions = [
         Node(
             package='aco_planner', executable='aco_node', output='screen',
-            parameters=[{'map_yaml': cfg['map_yaml'], 'use_sim_time': sim_time}],
+            parameters=[{'map_yaml': cfg['map_yaml'],
+                         'profile': world,
+                         'use_sim_time': sim_time}],
         ),
     ]
 

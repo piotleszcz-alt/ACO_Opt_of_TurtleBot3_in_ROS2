@@ -19,8 +19,8 @@ import time
 class AcoNode(Node):
     def __init__(self):
         super().__init__('aco_node')
-        
-        self.declare_parameter('map_yaml','')
+
+        self.declare_parameter('map_yaml', '')
         yaml_path = self.get_parameter('map_yaml').value
 
         if not yaml_path:
@@ -28,6 +28,20 @@ class AcoNode(Node):
             raise RuntimeError("Brak parametru map_yaml")
 
         self.map = MapData(yaml_path)
+        
+        self.declare_parameter('profile', 'arena')
+
+        profile_name = self.get_parameter('profile').value
+
+        if profile_name not in config.PROFILES:
+            self.get_logger().error(f"Nieznany profil '{profile_name}', dostępne: {list(config.PROFILES)}")
+            raise RuntimeError("Zły parametr profile")
+        
+        self.aco_params = config.PROFILES[profile_name]["params"]
+
+        self.aco_scaling = config.PROFILES[profile_name]["scaling"]
+
+        self.get_logger().info(f"Profil ACO: {profile_name}")
 
         self.grid = self.map.binarize_map()
         self.dilated_grid = inflation.dilatation(config.ROBOT_SAFE_RADIUS, self.grid, self.map.get_resolution())
@@ -125,7 +139,7 @@ class AcoNode(Node):
 
 
     def _plan_path(self, start, goal):
-        params, _ = tuning.scaled_params(start, goal, config.ACO_PARAMS)
+        params, _ = tuning.scaled_params(start, goal, self.aco_params, self.aco_scaling)
 
         t0 = time.perf_counter()
         try:

@@ -10,21 +10,26 @@ from aco_planner.aco_opt import ACOPlanner
 
 
 # Scenariusze testowe: (nazwa, start (r, c), cel (r, c))
+# DEFAULT_SCENARIOS = [
+#     ("krótka, dół areny",       (160, 180), (165, 215)),
+#     ("krótka, w pionie",        (165, 178), (187, 178)),
+#     ("środkowa kolumna",        (160, 200), (240, 200)),
+#     ("skos dół-góra",           (160, 180), (240, 210)),
+#     ("wierzchołki lewo-prawo",  (200, 160), (200, 235)),   # przez środkowy rząd słupków
+#     ("róg w róg",               (165, 180), (235, 220)),   # najdłuższa, po przekątnej
+# ]
+
 DEFAULT_SCENARIOS = [
-    ("krótka, dół areny",       (160, 180), (165, 215)),
-    ("krótka, w pionie",        (165, 178), (187, 178)),
-    ("środkowa kolumna",        (160, 200), (240, 200)),
-    ("skos dół-góra",           (160, 180), (240, 210)),
-    ("wierzchołki lewo-prawo",  (200, 160), (200, 235)),   # przez środkowy rząd słupków
-    ("róg w róg",               (165, 180), (235, 220)),   # najdłuższa, po przekątnej
-]
+    ("start -> koniec", (19, 19), (83, 83)),
+    ("środek -> wyjście", (51, 51), (83, 83))
+    ]
 
 # Jak dobierać parametry zależne od długości trasy
 DEFAULT_SCALING = {
     "ants_per_px": 0.25,     # mrówek na piksel odległości oktylnej
-    "ants_min": 10,
+    "ants_min": 20,
     "ants_max": 50,
-    "steps_factor": 4.0,    # max_steps = steps_factor * L_min
+    "steps_factor": 15.0,    # max_steps = steps_factor * L_min
     "steps_min": 100,
     "scale_Q": False,       # True -> Q_const = L_min (depozyt niezależny od długości trasy)
 }
@@ -176,7 +181,7 @@ def plot_results(grid, results, max_iter):
     plt.show()
 
 
-def run_tuning(grid, base_params, scenarios=DEFAULT_SCENARIOS, seeds=range(5),
+def run_tuning(grid, base_params, scenarios=DEFAULT_SCENARIOS, seeds=range(3),
                scaling=DEFAULT_SCALING, plot=True):
     """
     Główna funkcja strojenia.

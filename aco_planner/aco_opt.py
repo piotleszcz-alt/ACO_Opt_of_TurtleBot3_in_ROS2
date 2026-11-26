@@ -27,6 +27,22 @@ class ACOPlanner:
         self.rng = np.random.default_rng(seed)
         self.lam = lam
         self._validate_params()
+        self._precompute()
+
+    def _precompute(self):
+        """wolne komórki i heurystyka^beta dla całej mapy - liczone raz """
+        self._free = (self.grid == 0).tolist()
+
+        gr, gc = self.goal
+        rows, cols = np.indices(self.grid.shape)
+        dist = np.hypot(rows - gr, cols - gc)                       # odległość każdej komórki do celu
+        self._eta_straight = ((1.0 / (1.0 + dist)) ** self.beta).tolist()            # ruch prosty
+        self._eta_diag = ((1.0 / (math.sqrt(2) + dist)) ** self.beta).tolist()      # ruch po skosie
+        self._refresh_tau()
+
+    def _refresh_tau(self):
+        """tau^alfa dla całej mapy - liczone raz na iterację, po aktualizacji feromonu."""
+        self._tau_a = (self.tau ** self.alfa).tolist()
 
     def _validate_params(self):
         if not (0 < self.rho < 1):
@@ -72,7 +88,7 @@ class ACOPlanner:
             if not (0 <= nr < self.height and 0 <= nc < self.width):
                 continue
 
-            if self.grid[nr,nc] != 0:
+            if not self._free[nr][nc]:
                 continue
 
             if (nr, nc) in visited:
@@ -102,27 +118,26 @@ class ACOPlanner:
 
     # Wybór następnej komórki do której idzie mrówka
     def choose_next_cell(self, cell: tuple[int, int], neighbors: list[tuple[int, int]]) -> tuple:
+        r, c = cell
+        tau_a = self._tau_a
         a = []
-        for i in neighbors:
-            nr, nc = i
-            a_temp = self.tau[nr,nc]**self.alfa * self.heuristic(cell,(nr, nc))**self.beta #atrakcyjność śladu feromonowego
-            a.append(a_temp)
+        for nr, nc in neighbors:
+            eta = self._eta_diag if (nr != r and nc != c) else self._eta_straight
+            a.append(tau_a[nr][nc] * eta[nr][nc])     # tau^alfa * eta^beta - już policzone
 
-        a = np.array(a)
-        
-        q = self.rng.random()
+        if self.rng.random() <= self.q_0:              # eksploatacja
+            return neighbors[a.index(max(a))]
 
-        if q <= self.q_0:
-            index = np.argmax(a)
-            next_cell = neighbors[index]
-        else:
-            P = a / sum(a)
-            index = self.rng.choice(len(neighbors), p=P)
-            next_cell = neighbors[index]
+        # eksploracja
+        threshold = self.rng.random() * sum(a)
+        cumulative = 0.0
+        for cell_n, value in zip(neighbors, a):
+            cumulative += value
+            if cumulative >= threshold:
+                return cell_n
+        return neighbors[-1]                           # zabezpieczenie przed błędem zaokrągleń
 
-        return next_cell      
-
-    def construct_path(self):  # Kroki 1–3 w pętli -> ścieżka jednej mrówki albo None
+    def construct_path(self):  # ścieżka jednej mrówki albo None
         path = [self.start]
         visited = {self.start}
         current = self.start
@@ -130,9 +145,17 @@ class ACOPlanner:
         for _ in range(self.max_steps):
             if current == self.goal:
                 return path
+            
             neighbors = self.get_neighbors(current,visited)
+
             if not neighbors:
-                return None
+                path.pop() # usuwa ostatnią komórkę ze scieżki
+                if not path:
+                    return None
+
+                current = path[-1]
+                continue
+
             next_cell = self.choose_next_cell(current,neighbors)
             path.append(next_cell)
             visited.add(next_cell)
@@ -190,6 +213,7 @@ class ACOPlanner:
             self.tau[rows,cols] += delta_tau
 
         self.tau = np.clip(self.tau, self.tau_min, self.tau_max)
+        self._refresh_tau()
 
     def run(self):
         self.history = []

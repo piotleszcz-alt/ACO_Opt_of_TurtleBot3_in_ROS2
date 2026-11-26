@@ -9,7 +9,8 @@ from aco_planner.tuning import run_tuning, scaled_params
 
 def main():
 
-    map = MapData(config.YAML_FILE_PATH)
+    profile = config.PROFILES[config.PROFILE]
+    map = MapData(profile["map"])
 
     print("Resolution:", map.get_resolution())
     print("Origin:", map.get_origin())
@@ -48,20 +49,25 @@ def main():
     plt.show()
     
     if config.RUN_TUNING:
-        run_tuning(dilated_grid, config.ACO_PARAMS)
+        run_tuning(dilated_grid, profile["params"], scaling=profile["scaling"])
     else:
-        start, goal = (160, 180), (240, 210)
-
-        # te same reguły co w strojeniu: mrówki i max_steps dobrane do odległości
-        params, L_min = scaled_params(start, goal, config.ACO_PARAMS)
+        if config.PROFILE == "maze":
+            start, goal = (19, 19), (83, 83)      # labirynt 
+        elif config.PROFILE == "arena":
+            start, goal = (160, 180), (240, 210)
+        params, L_min = scaled_params(start, goal, profile["params"], profile["scaling"])
         planner = ACOPlanner(dilated_grid, start=start, goal=goal, **params)
+
         best = planner.run()
 
         if best is None:
             print("Żadna mrówka nie doszła do celu")
         else:
-            print(f"J = {planner.best_cost:.2f}, L_min = {L_min:.2f}, "
-                  f"J/L_min = {planner.best_cost / L_min:.3f}")
+
+            REF = 226.5      # najkrótsza trasa start → wyjście 
+
+            print(f"J = {planner.best_cost:.2f}, najkrótsza = {REF:.1f}, "
+                  f"J/najkrótsza = {planner.best_cost / REF:.3f}")
 
             rows, cols = zip(*best)
             fig, axes = plt.subplots(1, 3, figsize=(15, 5))
