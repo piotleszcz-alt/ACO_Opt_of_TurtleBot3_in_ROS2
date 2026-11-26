@@ -18,7 +18,7 @@ class MapData:
         image_name = self.yaml_data['image']
         path = self.yaml_file_path.parent / image_name
         if not path.exists():
-            raise FileNotFoundError(f"Nie znaleziono obrazu mapy: {path}")
+            raise FileNotFoundError(f"Map image not found: {path}")
         return path
 
     def load_map(self):

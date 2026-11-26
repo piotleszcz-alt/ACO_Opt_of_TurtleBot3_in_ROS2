@@ -30,7 +30,7 @@ class ACOPlanner:
         self._precompute()
 
     def _precompute(self):
-        """wolne komórki i heurystyka^beta dla całej mapy - liczone raz """
+        """Free cells and heuristic^beta for the whole map - computed once."""
         self._free = (self.grid == 0).tolist()
 
         gr, gc = self.goal
@@ -41,28 +41,28 @@ class ACOPlanner:
         self._refresh_tau()
 
     def _refresh_tau(self):
-        """tau^alfa dla całej mapy - liczone raz na iterację, po aktualizacji feromonu."""
+        """tau^alfa for the whole map - computed once per iteration, after the pheromone update."""
         self._tau_a = (self.tau ** self.alfa).tolist()
 
     def _validate_params(self):
         if not (0 < self.rho < 1):
-            raise ValueError(f"rho musi być w przedziale (0, 1), podano {self.rho}")
+            raise ValueError(f"rho must be in range (0, 1), got {self.rho}")
         if not (0 <= self.q_0 <= 1):
-            raise ValueError(f"q_0 musi być w przedziale [0, 1], podano {self.q_0}")
+            raise ValueError(f"q_0 must be in range [0, 1], got {self.q_0}")
         if not (self.alfa >= 0 and self.beta >= 0):
-            raise ValueError(f"alfa i beta muszą być >= 0, podano alfa={self.alfa}, beta={self.beta}")
+            raise ValueError(f"alfa and beta must be >= 0, got alfa={self.alfa}, beta={self.beta}")
         if not (0 < self.tau_min < self.tau_max):
-            raise ValueError(f"Musi być 0 < tau_min < tau_max, podano {self.tau_min}, {self.tau_max}")
+            raise ValueError(f"Must be 0 < tau_min < tau_max, got {self.tau_min}, {self.tau_max}")
         if not (self.tau_min <= self.tau_0 <= self.tau_max):
-            raise ValueError(f"tau_0 musi leżeć w [tau_min, tau_max], podano {self.tau_0}")
+            raise ValueError(f"tau_0 must be in [tau_min, tau_max], got {self.tau_0}")
         if not (self.Q_const > 0):
-            raise ValueError(f"Q_const musi być > 0, podano {self.Q_const}")
+            raise ValueError(f"Q_const must be > 0, got {self.Q_const}")
         if not (self.m_ants >= 1):
-            raise ValueError(f"Ilość mrówek musi być >= 1, podano {self.m_ants}")
+            raise ValueError(f"Number of ants must be >= 1, got {self.m_ants}")
         if not (self.max_iter >= 1):
-            raise ValueError(f"Ilość iteracji musi być >= 1, podano {self.max_iter}")
+            raise ValueError(f"Number of iterations must be >= 1, got {self.max_iter}")
         if not (self.max_steps >= 1):
-            raise ValueError(f"max_steps musi być >= 1, podano {self.max_steps}")
+            raise ValueError(f"max_steps must be >= 1, got {self.max_steps}")
 
         self._check_cell(self.start, "start")
         self._check_cell(self.goal, "goal")
@@ -70,9 +70,9 @@ class ACOPlanner:
     def _check_cell(self, cell:tuple, name):
         r, c = cell
         if not (0 <= r < self.height and 0 <= c < self.width):
-            raise ValueError(f"{name} {cell} jest poza mapą {self.height}x{self.width}")
+            raise ValueError(f"{name} {cell} is outside the map {self.height}x{self.width}")
         if self.grid[r, c] != 0:
-            raise ValueError(f"{name} {cell} leży na przeszkodzie (po dylatacji)")
+            raise ValueError(f"{name} {cell} lies on an obstacle (after dilation)")
         
     # zebranie wszystkich sąsiadów
     def get_neighbors(self, cell:tuple, visited):
@@ -245,7 +245,7 @@ class ACOPlanner:
             self.update_pheromones(self.best_path, self.best_cost)
 
             self.history.append(self.best_cost)
-            print(f"iter {i + 1}/{self.max_iter}: doszło {len(paths)}/{self.m_ants}, "
+            print(f"iter {i + 1}/{self.max_iter}: reached goal {len(paths)}/{self.m_ants}, "
                 f"best = {self.best_cost:.2f}")
 
         return self.best_path

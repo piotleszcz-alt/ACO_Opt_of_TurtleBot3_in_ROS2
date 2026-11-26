@@ -1,12 +1,12 @@
 """
-Uruchomienie całego projektu jedną komendą.
+Launch the whole project with a single command.
 
   ros2 launch aco_planner aco_sim.launch.py                    # arena + Gazebo
-  ros2 launch aco_planner aco_sim.launch.py world:=maze        # labirynt + Gazebo
+  ros2 launch aco_planner aco_sim.launch.py world:=maze        # maze + Gazebo
   ros2 launch aco_planner aco_sim.launch.py world:=maze gazebo:=false
-                                                               # tylko planowanie w RViz2
+                                                               # planning in RViz2 only
 
-Uruchamia: Gazebo z robotem, transformację map -> odom, aco_node, pure_pursuit, RViz2.
+Starts: Gazebo with the robot, the map -> odom transform, aco_node, pure_pursuit, RViz2.
 """
 
 import os
@@ -82,8 +82,8 @@ def launch_setup(context):
 def generate_launch_description():
     return LaunchDescription([
         DeclareLaunchArgument('world', default_value='arena', choices=list(WORLDS),
-                              description='arena albo maze'),
+                              description='arena or maze'),
         DeclareLaunchArgument('gazebo', default_value='true',
-                              description='false = tylko aco_node i RViz2, bez robota'),
+                              description='false = only aco_node and RViz2, no robot'),
         OpaqueFunction(function=launch_setup),
     ])

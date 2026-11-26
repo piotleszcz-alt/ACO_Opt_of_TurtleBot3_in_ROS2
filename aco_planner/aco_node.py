@@ -24,8 +24,8 @@ class AcoNode(Node):
         yaml_path = self.get_parameter('map_yaml').value
 
         if not yaml_path:
-            self.get_logger().error("Brak parametru map_yaml. Uruchom z: --ros-args -p map_yaml:=<ścieżka>")
-            raise RuntimeError("Brak parametru map_yaml")
+            self.get_logger().error("Missing map_yaml parameter. Run with: --ros-args -p map_yaml:=<path>")
+            raise RuntimeError("Missing map_yaml parameter")
 
         self.map = MapData(yaml_path)
         
@@ -34,20 +34,20 @@ class AcoNode(Node):
         profile_name = self.get_parameter('profile').value
 
         if profile_name not in config.PROFILES:
-            self.get_logger().error(f"Nieznany profil '{profile_name}', dostępne: {list(config.PROFILES)}")
-            raise RuntimeError("Zły parametr profile")
+            self.get_logger().error(f"Unknown profile '{profile_name}', available: {list(config.PROFILES)}")
+            raise RuntimeError("Invalid profile parameter")
         
         self.aco_params = config.PROFILES[profile_name]["params"]
 
         self.aco_scaling = config.PROFILES[profile_name]["scaling"]
 
-        self.get_logger().info(f"Profil ACO: {profile_name}")
+        self.get_logger().info(f"ACO profile: {profile_name}")
 
         self.grid = self.map.binarize_map()
         self.dilated_grid = inflation.dilatation(config.ROBOT_SAFE_RADIUS, self.grid, self.map.get_resolution())
 
         self.get_logger().info(
-            f"Mapa: {self.dilated_grid.shape}, przeszkody: {int(self.dilated_grid.sum())} komórek, "
+            f"Map: {self.dilated_grid.shape}, obstacles: {int(self.dilated_grid.sum())} cells, "
             f"res = {self.map.get_resolution()} m")
 
         map_qos = QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL, reliability=ReliabilityPolicy.RELIABLE)
@@ -64,22 +64,22 @@ class AcoNode(Node):
 
         
 
-        self.get_logger().info('aco_node uruchomiony')
+        self.get_logger().info('aco_node started')
 
     def _to_cell(self, x, y, name):
         cell = self.map.world_to_grid(x,y)
 
         if cell is None: 
-            self.get_logger().warn("Punkt jest poza mapą")
+            self.get_logger().warn("Point is outside the map")
             return None
         
         r, c = cell 
         
         if self.dilated_grid[r,c] == 1:
-            self.get_logger().warn("Punkt jest na przeszkodzie")
+            self.get_logger().warn("Point is on an obstacle")
             return None
         
-        self.get_logger().info(f"{name}: ({x:.2f}, {y:.2f}) m -> komórka {cell}, wolna")
+        self.get_logger().info(f"{name}: ({x:.2f}, {y:.2f}) m -> cell {cell}, free")
         return cell 
 
     def publish_map(self):
@@ -100,7 +100,7 @@ class AcoNode(Node):
         msg.data = (self.dilated_grid.astype(np.int8) * 100).flatten().tolist()
 
         self.map_pub.publish(msg)
-        self.get_logger().info('Mapa opublikowana przez ROS na /custom_map')
+        self.get_logger().info('Map published on /custom_map')
 
         # dane mojej mapy były w formie 0/1 - wolne/zajete --> ROS oczekuje danych w formie -1/0/100 (nieznane, wolne zajęte)
 
@@ -118,7 +118,7 @@ class AcoNode(Node):
     def on_goal(self,msg):
          # Czy start w ogóle został kliknięty
         if self.start is None:
-            self.get_logger().warn("Najpierw trzeba ustawić start (2D Pose Estimate)")
+            self.get_logger().warn("Set the start first (2D Pose Estimate)")
             return
 
         x = msg.pose.position.x
@@ -127,7 +127,7 @@ class AcoNode(Node):
         if goal is None:
             return
 
-        self.get_logger().info(f"Rozpoczynanie wyliczania optymalnej ścieżki z punktu: {self.start} -> {goal}")
+        self.get_logger().info(f"Computing optimal path from: {self.start} -> {goal}")
 
         path = self._plan_path(self.start, goal)
         
@@ -146,16 +146,16 @@ class AcoNode(Node):
             planner = ACOPlanner(self.dilated_grid, start=start, goal=goal, **params)
             best_path = planner.run()
         except ValueError as e:
-            self.get_logger().warn(f"ACO odrzuciło zadanie: {e}")
+            self.get_logger().warn(f"ACO rejected the request: {e}")
             return None
 
         dt = time.perf_counter() - t0
 
         if best_path is None:
-            self.get_logger().warn(f"Nie znaleziono ścieżki z czasem {dt}")
+            self.get_logger().warn(f"No path found, computation time {dt}")
             return None
 
-        self.get_logger().info(f"Długość ścieżki w komórkach: {len(best_path)}, koszt J: {planner.best_cost:.2f}, czas obliczeń: {dt:.2f}")
+        self.get_logger().info(f"Path length in cells: {len(best_path)}, cost J: {planner.best_cost:.2f}, computation time: {dt:.2f}")
 
         return best_path
 

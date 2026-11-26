@@ -67,12 +67,12 @@ class PurePursuit(Node):
             self.path.append((pos.x, pos.y))
 
         if len(self.path) == 0:
-            self.get_logger().warn('Odebrana ścieżka ma długość 0')
+            self.get_logger().warn('Received path has length 0')
             return
         
         self.target_idx = 0
 
-        self.get_logger().info(f'Nowa ścieżka N punktów: {len(self.path)}')
+        self.get_logger().info(f'New path, number of points: {len(self.path)}')
 
     def on_odom(self, msg):      # zapisz x, y, yaw robota
 
@@ -95,7 +95,7 @@ class PurePursuit(Node):
         if math.hypot(gx - x, gy - y) < self.goal_tolerance:
             self.publish_cmd(0.0, 0.0)
             self.path = []
-            self.get_logger().info('Cel został osiągnięty')
+            self.get_logger().info('Goal reached')
             return
 
         tx, ty = self.find_target()

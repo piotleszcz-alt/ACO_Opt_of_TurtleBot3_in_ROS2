@@ -1,19 +1,19 @@
 #!/usr/bin/env python3
 """
-Generator labiryntu dla projektu aco_planner.
+Maze generator for the aco_planner project.
 
-Tworzy w jednym kroku:
-  maze.pgm + maze.yaml   - mapa dla MapData / aco_node (ten sam format co mapa areny)
-  maze.world             - świat dla Gazebo (niskie ściany)
-  maze_world.launch.py   - launch: Gazebo + TurtleBot3 postawiony na starcie labiryntu
-  maze_preview.png       - podgląd: mapa, mapa po dylatacji, najkrótsza trasa
-  maze_info.txt          - współrzędne startu/celu, komendy, scenariusze do tuningu
+Creates in a single step:
+  maze.pgm + maze.yaml   - map for MapData / aco_node (same format as the arena map)
+  maze.world             - Gazebo world (low walls)
+  maze_world.launch.py   - launch: Gazebo + TurtleBot3 placed at the maze start
+  maze_preview.png       - preview: map, dilated map, shortest path
+  maze_info.txt          - start/goal coordinates, commands, tuning scenarios
 
-Mapa i świat powstają z TEJ SAMEJ listy ścian, więc zawsze się zgadzają.
-Układ 'map' = układ świata Gazebo (origin mapy jest podany w metrach świata).
+The map and the world are built from THE SAME list of walls, so they always match.
+The 'map' frame = the Gazebo world frame (the map origin is given in world meters).
 
-Użycie:
-  python3 make_maze.py                         # domyślnie 5x5, wynik w ~/ros2_ws/src/aco_planner/maps/maze
+Usage:
+  python3 make_maze.py                         # default 5x5, output in ~/ros2_ws/src/aco_planner/maps/maze
   python3 make_maze.py --rows 6 --cols 6 --seed 3
   python3 make_maze.py --out ./maze_test --cell 0.9
 """
@@ -40,10 +40,10 @@ FREE, OCCUPIED, UNKNOWN = 254, 0, 205          # wartości pikseli jak w map_sav
 # 1. Labirynt jako graf komórek (perfect maze: dokładnie jedna droga między komórkami)
 # ----------------------------------------------------------------------------
 def generate_maze(rows, cols, seed):
-    """Recursive backtracker (DFS). Zwraca zbiory ścian:
-    h_walls[(k, c)] - pozioma ściana na linii y = k (k = 0..rows), nad kolumną c
-    v_walls[(r, k)] - pionowa ściana na linii x = k (k = 0..cols), obok wiersza r
-    Wiersz 0 = dół labiryntu, kolumna 0 = lewa strona."""
+    """Recursive backtracker (DFS). Returns sets of walls:
+    h_walls[(k, c)] - horizontal wall on line y = k (k = 0..rows), above column c
+    v_walls[(r, k)] - vertical wall on line x = k (k = 0..cols), next to row r
+    Row 0 = bottom of the maze, column 0 = left side."""
     rng = random.Random(seed)
     h_walls = {(k, c) for k in range(rows + 1) for c in range(cols)}
     v_walls = {(r, k) for r in range(rows) for k in range(cols + 1)}
@@ -78,7 +78,7 @@ def generate_maze(rows, cols, seed):
 # 2. Ściany jako prostokąty w metrach (sąsiednie odcinki łączone w jeden blok)
 # ----------------------------------------------------------------------------
 def walls_to_boxes(h_walls, v_walls, rows, cols, cell, thick, x0, y0):
-    """Zwraca listę prostokątów (cx, cy, sx, sy) w metrach świata."""
+    """Returns a list of rectangles (cx, cy, sx, sy) in world meters."""
     boxes = []
     half = thick / 2
     # poziome: dla każdej linii k łączymy kolejne kolumny w jeden odcinek
@@ -114,8 +114,8 @@ def walls_to_boxes(h_walls, v_walls, rows, cols, cell, thick, x0, y0):
 # 3. Mapa zajętości (rasteryzacja prostokątów)
 # ----------------------------------------------------------------------------
 def rasterize(boxes, bounds, res, margin):
-    """bounds = (xmin, ymin, xmax, ymax) labiryntu razem ze ścianami.
-    Zwraca (obraz uint8 z wierszem 0 = GÓRA, origin_x, origin_y)."""
+    """bounds = (xmin, ymin, xmax, ymax) of the maze including the walls.
+    Returns (uint8 image with row 0 = TOP, origin_x, origin_y)."""
     xmin, ymin, xmax, ymax = bounds
     ox, oy = xmin - margin, ymin - margin
     width = int(math.ceil((xmax - xmin + 2 * margin) / res))
@@ -224,17 +224,17 @@ FALLBACK_WORLD = """<?xml version="1.0" ?>
 
 
 def build_world(walls_sdf):
-    """Wstawia ściany do pustego świata TurtleBota (ma wszystkie potrzebne pluginy).
-    Jeśli go nie ma, używa wbudowanego minimalnego świata."""
+    """Inserts the walls into the empty TurtleBot world (it has all required plugins).
+    If it is missing, a built-in minimal world is used."""
     if TB3_EMPTY_WORLD.exists():
         template = TB3_EMPTY_WORLD.read_text(encoding="utf-8")
         source = str(TB3_EMPTY_WORLD)
     else:
         template = FALLBACK_WORLD
-        source = "wbudowany szablon (nie znaleziono empty_world.world)"
+        source = "built-in template (empty_world.world not found)"
     idx = template.rfind("</world>")
     if idx == -1:
-        raise RuntimeError("Szablon świata nie zawiera </world>")
+        raise RuntimeError("World template does not contain </world>")
     world = template[:idx] + walls_sdf + template[idx:]
     ET.fromstring(world.encode("utf-8"))          # sprawdzenie, czy XML jest poprawny
     return world, source
@@ -245,7 +245,7 @@ def build_world(walls_sdf):
 # ----------------------------------------------------------------------------
 def build_launch(world_path, x, y):
     if not TB3_WORLD_LAUNCH.exists():
-        return None, f"nie znaleziono {TB3_WORLD_LAUNCH}"
+        return None, f"{TB3_WORLD_LAUNCH} not found"
     text = TB3_WORLD_LAUNCH.read_text(encoding="utf-8")
     # os.path.join(..., 'worlds', '/abs/maze.world') zwraca samą ścieżkę absolutną
     text, n_world = re.subn(r"""['"]turtlebot3_world\.world['"]""", repr(str(world_path)), text)
@@ -254,8 +254,8 @@ def build_launch(world_path, x, y):
     text, n_y = re.subn(r"""(['"]y_pose['"]\s*,\s*default\s*=\s*)['"][-0-9.]+['"]""",
                         rf"\g<1>'{y:.3f}'", text)
     if n_world != 1 or n_x != 1 or n_y != 1:
-        return None, (f"nie udało się podmienić (świat: {n_world}, x: {n_x}, y: {n_y}) - "
-                      f"zrób to ręcznie, patrz maze_info.txt")
+        return None, (f"replacement failed (world: {n_world}, x: {n_x}, y: {n_y}) - "
+                      f"do it manually, see maze_info.txt")
     return text, None
 
 
@@ -316,18 +316,18 @@ def octile(a, b):
 
 # ----------------------------------------------------------------------------
 def main():
-    p = argparse.ArgumentParser(description="Generator labiryntu: mapa + świat Gazebo + launch")
-    p.add_argument("--rows", type=int, default=5, help="liczba komórek w pionie")
-    p.add_argument("--cols", type=int, default=5, help="liczba komórek w poziomie")
-    p.add_argument("--cell", type=float, default=0.8, help="rozstaw ścian [m] (szerokość komórki)")
-    p.add_argument("--thick", type=float, default=0.15, help="grubość ścian [m]")
-    p.add_argument("--height", type=float, default=0.3, help="wysokość ścian [m]")
-    p.add_argument("--res", type=float, default=0.05, help="rozdzielczość mapy [m/piksel]")
-    p.add_argument("--margin", type=float, default=0.5, help="margines wokół labiryntu na mapie [m]")
-    p.add_argument("--robot-radius", type=float, default=0.18, help="promień do dylatacji [m]")
-    p.add_argument("--seed", type=int, default=3, help="ziarno losowania labiryntu")
+    p = argparse.ArgumentParser(description="Maze generator: map + Gazebo world + launch")
+    p.add_argument("--rows", type=int, default=5, help="number of cells vertically")
+    p.add_argument("--cols", type=int, default=5, help="number of cells horizontally")
+    p.add_argument("--cell", type=float, default=0.8, help="wall spacing [m] (cell width)")
+    p.add_argument("--thick", type=float, default=0.15, help="wall thickness [m]")
+    p.add_argument("--height", type=float, default=0.3, help="wall height [m]")
+    p.add_argument("--res", type=float, default=0.05, help="map resolution [m/pixel]")
+    p.add_argument("--margin", type=float, default=0.5, help="margin around the maze on the map [m]")
+    p.add_argument("--robot-radius", type=float, default=0.18, help="dilation radius [m]")
+    p.add_argument("--seed", type=int, default=3, help="maze random seed")
     p.add_argument("--out", default=str(Path.home() / "ros2_ws/src/aco_planner/maps/maze"),
-                   help="folder wynikowy")
+                   help="output directory")
     a = p.parse_args()
 
     out = Path(a.out).expanduser().resolve()
@@ -416,59 +416,59 @@ def main():
         plt.close(fig)
         preview = "maze_preview.png"
     except Exception as e:                              # brak matplotlib to nie problem
-        preview = f"(pominięty: {e})"
+        preview = f"(skipped: {e})"
 
     # --- raport ---
     yaml_path = out / "maze.yaml"
     launch_path = out / "maze_world.launch.py"
     lines = [
-        f"Labirynt {a.rows}x{a.cols}, komórka {a.cell} m, ściany {a.thick} m x {a.height} m, seed {a.seed}",
-        f"Mapa: {grid.shape[1]}x{grid.shape[0]} px, res {a.res} m, origin ({ox:.3f}, {oy:.3f})",
-        f"Świat zbudowany z: {world_src}",
+        f"Maze {a.rows}x{a.cols}, cell {a.cell} m, walls {a.thick} m x {a.height} m, seed {a.seed}",
+        f"Map: {grid.shape[1]}x{grid.shape[0]} px, res {a.res} m, origin ({ox:.3f}, {oy:.3f})",
+        f"World built from: {world_src}",
         "",
-        f"START robota (map = świat): x = {sx:.3f}, y = {sy:.3f}   -> komórka {start_px}",
-        f"CEL przy wyjściu:          x = {gx:.3f}, y = {gy:.3f}   -> komórka {goal_px}",
+        f"Robot START (map = world): x = {sx:.3f}, y = {sy:.3f}   -> cell {start_px}",
+        f"GOAL at exit:              x = {gx:.3f}, y = {gy:.3f}   -> cell {goal_px}",
         "",
-        f"Przejezdność po dylatacji ({a.robot_radius} m): " +
-        ("TAK" if path else "NIE - zwiększ --cell albo zmniejsz --thick"),
-        f"Najkrótsza trasa: {length:.1f} px = {length * a.res:.2f} m; "
-        f"L_min (bez ścian): {l_min:.1f} px; stosunek {length / l_min:.2f}",
-        f"Uwaga: max_steps w tuning.py = steps_factor * L_min. Przy stosunku "
-        f"{length / l_min:.1f} steps_factor = 4 może być za mało - ustaw co najmniej "
+        f"Traversable after dilation ({a.robot_radius} m): " +
+        ("YES" if path else "NO - increase --cell or decrease --thick"),
+        f"Shortest path: {length:.1f} px = {length * a.res:.2f} m; "
+        f"L_min (without walls): {l_min:.1f} px; ratio {length / l_min:.2f}",
+        f"Note: max_steps in tuning.py = steps_factor * L_min. With a ratio of "
+        f"{length / l_min:.1f}, steps_factor = 4 may be too low - set it to at least "
         f"{math.ceil(2 * length / l_min)}.",
         "",
-        "=== Uruchomienie ===",
+        "=== How to run ===",
         "Terminal 1 (Gazebo):",
         "  export TURTLEBOT3_MODEL=burger",
         (f"  ros2 launch {launch_path}" if launch_text is not None else
-         f"  !!! launch nie został utworzony: {launch_err}\n"
-         f"  Skopiuj {TB3_WORLD_LAUNCH} i zmień w nim: plik świata na {out / 'maze.world'},\n"
-         f"  domyślne x_pose na {sx:.3f}, y_pose na {sy:.3f}."),
+         f"  !!! launch file was not created: {launch_err}\n"
+         f"  Copy {TB3_WORLD_LAUNCH} and change: the world file to {out / 'maze.world'},\n"
+         f"  default x_pose to {sx:.3f}, y_pose to {sy:.3f}."),
         "Terminal 2 (map -> odom):",
         f"  ros2 run tf2_ros static_transform_publisher --x {sx:.3f} --y {sy:.3f} "
         f"--frame-id map --child-frame-id odom",
-        "Terminal 3 (planer):",
+        "Terminal 3 (planner):",
         f"  ros2 run aco_planner aco_node --ros-args -p map_yaml:={yaml_path}",
-        "Terminal 4 (sterownik):",
+        "Terminal 4 (controller):",
         f"  ros2 run aco_planner pure_pursuit --ros-args "
         f"-p odom_offset_x:={sx:.3f} -p odom_offset_y:={sy:.3f}",
         "Terminal 5 (RViz2):",
         "  rviz2 -d ~/ros2_ws/src/aco_planner/aco.rviz --ros-args -p use_sim_time:=true",
         "",
-        "=== Scenariusze do tuning.run_tuning(..., scenarios=MAZE_SCENARIOS) ===",
+        "=== Scenarios for tuning.run_tuning(..., scenarios=MAZE_SCENARIOS) ===",
         "MAZE_SCENARIOS = [",
         *scen_lines,
         "]",
         "",
-        "Najkrótsze trasy scenariuszy (px) / L_min (px):",
+        "Shortest scenario paths (px) / L_min (px):",
         *[f"  {n:<28} {ln:7.1f} / {lm:6.1f}  (x{ln / lm:.2f})" for n, _, _, ln, lm in scen_stats],
         "",
-        f"Podgląd: {preview}",
+        f"Preview: {preview}",
     ]
     report = "\n".join(lines)
     (out / "maze_info.txt").write_text(report + "\n", encoding="utf-8")
     print(report)
-    print(f"\nPliki zapisane w: {out}")
+    print(f"\nFiles saved in: {out}")
 
 
 if __name__ == "__main__":

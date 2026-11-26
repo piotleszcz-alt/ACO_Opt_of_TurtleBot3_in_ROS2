@@ -36,14 +36,14 @@ DEFAULT_SCALING = {
 
 
 def octile_distance(start, goal):
-    """Najkrótsza możliwa długość trasy na siatce 8-sąsiedztwa (bez przeszkód)."""
+    """Shortest possible path length on an 8-connected grid (no obstacles)."""
     dr = abs(goal[0] - start[0])
     dc = abs(goal[1] - start[1])
     return max(dr, dc) + (math.sqrt(2) - 1) * min(dr, dc)
 
 
 def scaled_params(start, goal, base_params, scaling=DEFAULT_SCALING):
-    """Zwraca kopię base_params z m_ants, max_steps (i opcjonalnie Q) dobranymi do odległości."""
+    """Returns a copy of base_params with m_ants, max_steps (and optionally Q) scaled to the distance."""
     L_min = octile_distance(start, goal)
     params = dict(base_params)
 
@@ -58,7 +58,7 @@ def scaled_params(start, goal, base_params, scaling=DEFAULT_SCALING):
 
 
 def last_improvement(history):
-    """Numer iteracji (od 1), w której najlepszy koszt poprawił się ostatni raz."""
+    """Iteration number (from 1) in which the best cost improved for the last time."""
     last = 0
     for i in range(1, len(history)):
         if history[i] < history[i - 1]:
@@ -67,7 +67,7 @@ def last_improvement(history):
 
 
 def run_scenario(grid, start, goal, params, seeds):
-    """Puszcza jeden scenariusz dla wszystkich seedów. Zwraca listę wyników."""
+    """Runs one scenario for all seeds. Returns a list of results."""
     runs = []
     for seed in seeds:
         planner = ACOPlanner(grid, start=start, goal=goal, seed=seed, **params)
@@ -88,7 +88,7 @@ def run_scenario(grid, start, goal, params, seeds):
 
 
 def summarize(name, L_min, params, runs):
-    """Liczy statystyki jednego scenariusza."""
+    """Computes statistics for a single scenario."""
     costs = [r["cost"] for r in runs if r["cost"] != np.inf]
     summary = {
         "name": name,
@@ -111,14 +111,14 @@ def summarize(name, L_min, params, runs):
 
 
 def print_table(summaries, max_iter):
-    header = (f"{'scenariusz':<24}{'L_min':>7}{'mrówki':>8}{'kroki':>7}{'trasa':>7}"
-              f"{'śr. J':>8}{'odch.':>7}{'min J':>8}{'J/Lmin':>8}{'ost.popr.':>10}{'czas[s]':>9}")
+    header = (f"{'scenario':<24}{'L_min':>7}{'ants':>8}{'steps':>7}{'found':>7}"
+              f"{'mean J':>8}{'std':>7}{'min J':>8}{'J/Lmin':>8}{'last impr':>10}{'time[s]':>9}")
     print("\n" + header)
     print("-" * len(header))
     for s in summaries:
         if s["found"] == 0:
             print(f"{s['name']:<24}{s['L_min']:>7.1f}{s['m_ants']:>8}{s['max_steps']:>7}"
-                  f"{'0/' + str(s['total']):>7}   BRAK TRASY")
+                  f"{'0/' + str(s['total']):>7}   NO PATH")
             continue
         print(f"{s['name']:<24}{s['L_min']:>7.1f}{s['m_ants']:>8}{s['max_steps']:>7}"
               f"{str(s['found']) + '/' + str(s['total']):>7}"
@@ -127,19 +127,19 @@ def print_table(summaries, max_iter):
 
     ratios = [s["ratio"] for s in summaries if "ratio" in s]
     if ratios:
-        print(f"\nŚrednie J/L_min po scenariuszach: {np.mean(ratios):.3f}  "
-              f"(najgorszy: {max(ratios):.3f})")
+        print(f"\nMean J/L_min across scenarios: {np.mean(ratios):.3f}  "
+              f"(worst: {max(ratios):.3f})")
 
 
 def free_area_bounds(grid, margin=10):
-    """Zakres wierszy i kolumn wolnej przestrzeni, żeby przybliżyć wykres na arenę."""
+    """Row and column range of the free space, used to zoom the plot onto the arena."""
     rows, cols = np.where(grid == 0)
     return (cols.min() - margin, cols.max() + margin,
             rows.min() - margin, rows.max() + margin)
 
 
 def plot_results(grid, results, max_iter):
-    """Jeden wiersz na scenariusz: mapa z najlepszą trasą i krzywe zbieżności wszystkich seedów."""
+    """One row per scenario: map with the best path and convergence curves of all seeds."""
     n = len(results)
     fig, axes = plt.subplots(n, 2, figsize=(11, 3.6 * n), squeeze=False)
     x0, x1, y0, y1 = free_area_bounds(grid)
@@ -184,32 +184,32 @@ def plot_results(grid, results, max_iter):
 def run_tuning(grid, base_params, scenarios=DEFAULT_SCENARIOS, seeds=range(3),
                scaling=DEFAULT_SCALING, plot=True):
     """
-    Główna funkcja strojenia.
+    Main tuning function.
 
-    grid        - mapa po dylatacji (0 = wolne, 1 = przeszkoda)
-    base_params - parametry ACOPlanner (np. config.ACO_PARAMS); m_ants i max_steps
-                  zostaną nadpisane wartościami dobranymi do długości trasy
-    scenarios   - lista (nazwa, start, cel)
-    seeds       - seedy do sprawdzenia dla każdego scenariusza
-    scaling     - reguły dobierania m_ants / max_steps / Q
-    plot        - czy rysować wykres
+    grid        - dilated map (0 = free, 1 = obstacle)
+    base_params - ACOPlanner parameters (e.g. config.ACO_PARAMS); m_ants and max_steps
+                  will be overridden with values scaled to the path length
+    scenarios   - list of (name, start, goal)
+    seeds       - seeds to test for each scenario
+    scaling     - rules for choosing m_ants / max_steps / Q
+    plot        - whether to draw the plot
     """
     results = []
     max_iter = base_params.get("max_iter", 50)
 
     for name, start, goal in scenarios:
         params, L_min = scaled_params(start, goal, base_params, scaling)
-        print(f"[{name}] start={start}, cel={goal}, L_min={L_min:.1f}, "
-              f"mrówki={params['m_ants']}, max_steps={params['max_steps']} ...")
+        print(f"[{name}] start={start}, goal={goal}, L_min={L_min:.1f}, "
+              f"ants={params['m_ants']}, max_steps={params['max_steps']} ...")
         try:
             runs = run_scenario(grid, start, goal, params, seeds)
         except ValueError as e:      # np. start/cel na przeszkodzie
-            print(f"  pominięty: {e}")
+            print(f"  skipped: {e}")
             continue
         results.append((summarize(name, L_min, params, runs), runs))
 
     if not results:
-        print("Żaden scenariusz się nie wykonał.")
+        print("No scenario was executed.")
         return []
 
     print_table([s for s, _ in results], max_iter)

@@ -61,13 +61,13 @@ def main():
         best = planner.run()
 
         if best is None:
-            print("Żadna mrówka nie doszła do celu")
+            print("No ant reached the goal")
         else:
 
             REF = 226.5      # najkrótsza trasa start → wyjście 
 
-            print(f"J = {planner.best_cost:.2f}, najkrótsza = {REF:.1f}, "
-                  f"J/najkrótsza = {planner.best_cost / REF:.3f}")
+            print(f"J = {planner.best_cost:.2f}, shortest = {REF:.1f}, "
+                  f"J/shortest = {planner.best_cost / REF:.3f}")
 
             rows, cols = zip(*best)
             fig, axes = plt.subplots(1, 3, figsize=(15, 5))
