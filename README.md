@@ -7,7 +7,11 @@ The project works on two maps:
 - **Arena** – the standard TurtleBot3 world with 9 pillars (open space, easy routes),
 - **Maze** – a generated maze with dead ends, where the ant colony really has to learn.
 
-<!-- Demo video: drag the .mp4 into this README in the GitHub web editor to embed it here -->
+
+Video:
+https://github.com/user-attachments/assets/54006c6c-6613-4165-ad6e-460961108644
+
+
 
 ---
 
